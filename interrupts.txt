@@ -1,0 +1,112 @@
+/*
+
+Target device: ATmega 328P
+
+
+
+Description: This program handle external interrupts (INT0) when the button connected to PD2 is pressed. The interrupt code toggles the LED that is connected to PB3 once every time the button is pressed and released. Also, a timer interrupt was used along with external interuppt to take care of the bouncing. 
+
+*/
+
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#define LED PB3 
+#define BUTTON PD2
+#define notpressed 0
+#define pressbounce 1
+#define pressed 2
+#define releasebounce 3
+
+volatile unsigned char buttonstate = notpressed;
+
+
+
+ISR (INT0_vect)
+{
+
+if (buttonstate == notpressed)
+{
+PORTB |= (1 << LED);
+TCCR1B |= (1 << CS12);
+TCCR1B &= ~((1 << CS10) | (1 << CS11));
+buttonstate = pressbounce;
+
+}
+else if (buttonstate == pressed)
+{
+TCCR1B |= (1 << CS12);
+TCCR1B &= ~((1 << CS10) | (1 << CS11));
+buttonstate = releasebounce;
+PORTB ^= (1 << LED);
+
+
+}
+
+}//toggle LED only once per button press-release once bouncing 
+
+
+ISR(TIMER1_COMPA_vect)
+{
+if (buttonstate == pressbounce)
+{
+TCNT1 = 0;//initializing
+TCCR1B &= ~((1<<CS10)|(1<<CS11)|(1<<CS12));
+buttonstate = pressed;
+}
+else if (buttonstate == releasebounce)
+{
+TCNT1=0;
+TCCR1B &= ~((1<<CS10)|(1<<CS11)|(1<<CS12));
+buttonstate = notpressed;
+}
+}//taking care of the switch bouncing
+
+
+void initPortsBD(void)
+{
+
+DDRB |= (1<<LED);
+DDRD &= ~(1 << BUTTON);
+PORTD |= (1 << BUTTON);
+
+}//configure inputs and outputs. also enable pull-up.
+
+
+void setUpInterrupts(void)
+{
+TIMSK1 = 0;
+TIMSK1 |= (1<<OCIE1A);
+OCR1A = 20000;
+EIMSK |= (1 << INT0); //turn on INT0
+EICRA |= (1 << ISC00); //falling & rising edge
+EICRA &= ~(1 << ISC01);
+}//interupt related registers
+
+
+int main(void)
+{
+
+unsigned int x = 0;
+
+
+initPortsBD();
+
+PORTB |= (1 << LED);
+
+cli();//clear global interrupts 
+
+setUpInterrupts();
+
+sei ();//enable global interrupt bit
+
+while(1)//repeat forever
+{
+x=1;//dummy
+x+=1;
+
+}
+
+return 0;
+
+}
